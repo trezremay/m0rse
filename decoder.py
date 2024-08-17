@@ -1,63 +1,68 @@
+
 import cv2
 import time
 
-# Thresholds for detecting flashes
-BRIGHTNESS_THRESHOLD = 200  # This value may need tuning
-DOT_THRESHOLD = 0.3
-DASH_THRESHOLD = 0.7
+# Morse code dictionary
+MORSE_CODE_DICT = {
+    '.-': 'A', '-...': 'B', '-.-.': 'C', '-..': 'D', '.': 'E', '..-.': 'F',
+    '--.': 'G', '....': 'H', '..': 'I', '.---': 'J', '-.-': 'K', '.-..': 'L',
+    '--': 'M', '-.': 'N', '---': 'O', '.--.': 'P', '--.-': 'Q', '.-.': 'R',
+    '...': 'S', '-': 'T', '..-': 'U', '...-': 'V', '.--': 'W', '-..-': 'X',
+    '-.--': 'Y', '--..': 'Z', '-----': '0', '.----': '1', '..---': '2',
+    '...--': '3', '....-': '4', '.....': '5', '-....': '6', '--...': '7',
+    '---..': '8', '----.': '9'
+}
 
-def decode_morse_from_video():
-    cap = cv2.VideoCapture(0)  # 0 for the default webcam
-    last_brightness = None
-    morse_code = ""
+def decode_morse(morse_code):
+    return ''.join(MORSE_CODE_DICT.get(code, '') for code in morse_code.split(' '))
+
+def capture_and_decode():
+    cap = cv2.VideoCapture(0)
+    last_brightness = 0
+    morse_code = []
+    current_symbol = []
     start_time = None
 
-    while True:
-        ret, frame = cap.read()
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        avg_brightness = gray.mean()
+    try:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-        if last_brightness is None:
-            last_brightness = avg_brightness
-            continue
+            # Calculate brightness
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            brightness = gray.mean()
 
-        if avg_brightness > BRIGHTNESS_THRESHOLD and last_brightness <= BRIGHTNESS_THRESHOLD:
-            start_time = time.time()
+            if brightness > 100:  # Arbitrary threshold for detecting a flash
+                if last_brightness <= 100:
+                    start_time = time.time()
+            else:
+                if last_brightness > 100 and start_time:
+                    duration = time.time() - start_time
+                    if duration < 0.3:
+                        current_symbol.append('.')
+                    elif duration < 0.7:
+                        current_symbol.append('-')
+                    else:
+                        if current_symbol:
+                            morse_code.append(''.join(current_symbol))
+                        current_symbol = []
+                
+                if len(morse_code) > 0 and len(current_symbol) == 0:
+                    decoded_message = decode_morse(' '.join(morse_code))
+                    print(f"Decoded Message: {decoded_message}")
+                    morse_code = []
 
-        elif avg_brightness <= BRIGHTNESS_THRESHOLD and last_brightness > BRIGHTNESS_THRESHOLD:
-            if start_time:
-                duration = time.time() - start_time
-                if duration < DOT_THRESHOLD:
-                    morse_code += "."
-                elif duration < DASH_THRESHOLD:
-                    morse_code += "-"
-                else:
-                    # Could be used for adding space between characters
-                    morse_code += " "
-                start_time = None
+            last_brightness = brightness
 
-        last_brightness = avg_brightness
+            # Show the frame (for visual debugging)
+            cv2.imshow('frame', frame)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
 
-        cv2.imshow('frame', gray)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()
 
-    cap.release()
-    cv2.destroyAllWindows()
-    return morse_code
-
-def morse_to_text(morse_code):
-    inverse_morse_dict = {v: k for k, v in MORSE_CODE_DICT.items()}
-    text = ""
-    for code in morse_code.split(" "):
-        if code in inverse_morse_dict:
-            text += inverse_morse_dict[code]
-        else:
-            text += " "  # Add space for unknown codes
-    return text
-
-# Example usage:
 if __name__ == "__main__":
-    morse_code = decode_morse_from_video()
-    print(f"Detected Morse Code: {morse_code}")
-    print(f"Decoded Text: {morse_to_text(morse_code)}")
+    capture_and_decode()

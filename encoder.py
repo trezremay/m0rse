@@ -36,5 +36,5 @@ def flash_morse_code(message):
 
 # Example usage:
 if __name__ == "__main__":
-    message = "hello jessie how are you"
+    message = "morning"
     flash_morse_code(message)
